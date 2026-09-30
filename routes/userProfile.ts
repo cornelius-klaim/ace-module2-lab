@@ -51,15 +51,15 @@ export function getUserProfile () {
 
     let username = user.username
 
-    if (username?.match(/#{(.*)}/) !== null && utils.isChallengeEnabled(challenges.usernameXssChallenge)) {
+    if (username?.match(/^#{(.*)}$/s) !== null && utils.isChallengeEnabled(challenges.usernameXssChallenge)) {
       req.app.locals.abused_ssti_bug = true
-      const code = username?.substring(2, username.length - 1)
+      const code = username?.slice(2, -1)
       try {
         if (!code) {
           throw new Error('Username is null')
         }
         const singleQuoteRegex = /^'(?:[^'\\]|\\.)*'$/
-        const doubleQuoteRegex = /^"(?:[^"\\]|\\.)*"$/
+        const doubleQuoteRegex = /^\"(?:[^\"\\]|\\.)*\"$/
         const backtickRegex = /^`(?:[^`\\$]|\\.|\$(?!{))*`$/
         const numericRegex = /^-?\d+(?:\.\d+)?$/
         const booleanRegex = /^(?:true|false|null|undefined)$/
@@ -73,12 +73,16 @@ export function getUserProfile () {
         if (!isSafe) {
           throw new Error('Unsafe code execution blocked')
         }
-        username = eval(code) // eslint-disable-line no-eval
+        username = String(eval(code)) // eslint-disable-line no-eval
       } catch (err) {
         username = '\\' + username
       }
     } else {
       username = '\\' + username
+    }
+
+    if (username) {
+      username = username.replace(/[\r\n]/g, '').replace(/([#!]{|#\[)/g, '\\$1')
     }
 
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
